@@ -49,6 +49,23 @@ else
     exit -1
 fi
 
+# Resume the cancelled task, so that the cancellation can complete.
+TOKEN="$(echo "$INTERRUPT_OUT" | grep -oE "token['\"]?: *['\"][^'\"]+" | head -n1 | sed -E "s/.*['\"]//")"
+if [ -z "$TOKEN" ]; then
+    echo "FAILURE: could not extract the resume token." >&2
+    exit -1
+fi
+RESUME_JSON="$(mktemp)"
+echo "{\"type\": \"resume_task_request\", \"for_task\": \"$TASK_ID\", \"for_tokens\": [\"$TOKEN\"]}" > "$RESUME_JSON"
+RESUME_OUT="$(ros2 run rmf_demos_tasks api_request -f "$RESUME_JSON" 2>&1)"
+echo "$RESUME_OUT"
+if echo "$RESUME_OUT" | grep -q "success.*True"; then
+    echo "SUCCESS: task $TASK_ID was resumed."
+else
+    echo "FAILURE: resume task request was not accepted as expected." >&2
+    exit -1
+fi
+
 # Send tinyRobot2 to [patrol_C].
 ros2 run rmf_demos_tasks dispatch_go_to_place -F tinyRobot -R tinyRobot2 -p patrol_C  --use_sim_time
 
